@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>CupiCho Price Tag System v3.4</title>
+    <title>CupiCho Price Tag System v3.6</title>
     
     <!-- 1. 載入 Tailwind CSS (樣式庫) -->
     <script src="https://cdn.tailwindcss.com"></script>
@@ -21,21 +21,38 @@
         
         /* 補強列印樣式 */
         @media print {
-            @page { size: A4; margin: 10mm; }
-            body { background: white !important; -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
+            @page { 
+                size: A4; 
+                margin: 10mm; /* 設定頁面邊距 */
+            }
+            
+            body { 
+                background-color: white !important; 
+                margin: 0 !important;
+                padding: 0 !important;
+            }
+
+            /* 隱藏所有非列印元素 */
             .no-print { display: none !important; }
+
+            /* 列印容器設定 */
             .print-container { 
                 display: grid !important; 
-                grid-template-columns: 1fr 1fr !important; 
-                gap: 5mm !important; 
+                grid-template-columns: 1fr 1fr !important; /* 雙欄排列 */
+                gap: 5mm !important; /* 標籤間距 */
                 width: 100% !important; 
+                background-color: white !important; /* 確保背景全白 */
             }
+
+            /* 標籤本體設定 */
             .cupicho-tag { 
-                border: 1px solid #1a0e0b !important; 
+                border: 1px dashed #ccc !important; /* 加入淡淡的虛線邊框方便裁切 */
                 break-inside: avoid !important; 
                 margin: 0 auto !important; 
-                background-color: #2B130F !important; 
+                background-color: #2B130F !important; /* 只有標籤本體有顏色 */
                 color: #E1C284 !important; 
+                -webkit-print-color-adjust: exact !important; 
+                print-color-adjust: exact !important; 
             }
         }
     </style>
@@ -46,7 +63,7 @@
     <!-- 5. React 程式碼邏輯 -->
     <script type="text/babel" data-presets="react">
         const { useState, useEffect, useRef } = React;
-        const VERSION = "v3.4 Multi-AI"; // 版本號更新
+        const VERSION = "v3.6 Pure Print"; // 版本號更新
         
         // 圖示組件
         const Icon = ({ name, size = 18, className }) => {
@@ -65,12 +82,9 @@
                 FileSpreadsheet: <><path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z" /><path d="M14 2v4a2 2 0 0 0 2 2h4" /><path d="M8 13h2" /><path d="M8 17h2" /><path d="M14 13h2" /><path d="M14 17h2" /></>,
                 Download: <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3" />,
                 AlertCircle: <><circle cx="12" cy="12" r="10" /><line x1="12" x2="12" y1="8" y2="12" /><line x1="12" x2="12.01" y1="16" y2="16" /></>,
-                Sparkles: <><path d="m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L21 12l-5.813-1.912a2 2 0 0 1-1.275-1.275L12 3Z" /><path d="M20 3v4" /><path d="M22 5h-4" /><path d="M4 17v2" /><path d="M5 18H3" /></>,
-                Key: <><circle cx="7.5" cy="15.5" r="5.5" /><path d="m21 2-9.6 9.6" /><path d="m15.5 7.5 3 3L22 7l-3-3" /></>,
-                Loader2: <path d="M21 12a9 9 0 1 1-6.219-8.56" />,
                 Save: <><path d="M15.2 3a2 2 0 0 1 1.4.6l3.8 3.8a2 2 0 0 1 .6 1.4V19a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2z" /><path d="M17 21v-8H7v8" /><path d="M7 3v5h8" /></>,
                 RotateCcw: <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 12" />,
-                Bot: <><rect width="18" height="10" x="3" y="11" rx="2" /><circle cx="12" cy="5" r="2" /><path d="M12 7v4" /><line x1="8" x2="8" y1="16" y2="16" /><line x1="16" x2="16" y1="16" y2="16" /></>
+                Globe: <><circle cx="12" cy="12" r="10" /><path d="M12 2a14.5 14.5 0 0 0 0 20 14.5 14.5 0 0 0 0-20" /><path d="M2 12h20" /></>
             };
             
             return (
@@ -106,11 +120,6 @@
             ];
 
             const [tags, setTags] = useState(defaultTags);
-            // AI 設定
-            const [apiKey, setApiKey] = useState('');
-            const [aiProvider, setAiProvider] = useState('gemini'); // 'gemini' | 'openai'
-            const [modelId, setModelId] = useState('gemini-1.5-flash'); 
-            
             const [customLogo, setCustomLogo] = useState(null);
             const [isLoaded, setIsLoaded] = useState(false);
             const [view, setView] = useState('list'); 
@@ -118,10 +127,6 @@
             const [deleteConfirmId, setDeleteConfirmId] = useState(null);
             const [csvImportData, setCsvImportData] = useState(null);
             const [errorMsg, setErrorMsg] = useState(null);
-            const [showKeyModal, setShowKeyModal] = useState(false);
-            const [isBatchTranslating, setIsBatchTranslating] = useState(false);
-            const [isSingleTranslating, setIsSingleTranslating] = useState(false);
-            const [translateProgress, setTranslateProgress] = useState('');
 
             const fileInputRef = useRef(null);
             const csvInputRef = useRef(null);
@@ -131,22 +136,9 @@
                 const loadData = () => {
                 try {
                     const savedTags = localStorage.getItem('cupicho_tags');
-                    const savedKey = localStorage.getItem('cupicho_api_key');
-                    const savedProvider = localStorage.getItem('cupicho_ai_provider');
-                    const savedModel = localStorage.getItem('cupicho_model_id');
                     const savedLogo = localStorage.getItem('cupicho_logo');
 
                     if (savedTags) setTags(JSON.parse(savedTags));
-                    if (savedKey) setApiKey(savedKey);
-                    if (savedProvider) setAiProvider(savedProvider);
-                    // 如果有存 Provider 但沒存 Model，給予對應的預設值
-                    if (savedModel) {
-                        setModelId(savedModel);
-                    } else if (savedProvider === 'openai') {
-                        setModelId('gpt-4o-mini');
-                    } else {
-                        setModelId('gemini-1.5-flash');
-                    }
                     if (savedLogo) setCustomLogo(savedLogo);
                 } catch (error) {
                     console.error("讀取儲存資料失敗:", error);
@@ -161,11 +153,8 @@
             useEffect(() => {
                 if (isLoaded) {
                     localStorage.setItem('cupicho_tags', JSON.stringify(tags));
-                    localStorage.setItem('cupicho_api_key', apiKey);
-                    localStorage.setItem('cupicho_ai_provider', aiProvider);
-                    localStorage.setItem('cupicho_model_id', modelId);
                 }
-            }, [tags, apiKey, aiProvider, modelId, isLoaded]);
+            }, [tags, isLoaded]);
 
             useEffect(() => {
                 if (isLoaded && customLogo) {
@@ -192,125 +181,6 @@
                 const reader = new FileReader();
                 reader.onloadend = () => setCustomLogo(reader.result);
                 reader.readAsDataURL(file);
-            };
-
-            // -----------------------
-            // AI API 呼叫核心
-            // -----------------------
-            const callAI = async (text, retryCount = 0) => {
-                if (!apiKey) return null;
-                
-                const systemPrompt = `Translate to English for high-end chocolate brand 'CupiCho'. Style: Concise, Premium. Keep quantity/weight info. Input: "${text}" Output:`;
-
-                try {
-                    let response, data, resultText;
-
-                    if (aiProvider === 'openai') {
-                        // --- OpenAI Logic ---
-                        response = await fetch('https://api.openai.com/v1/chat/completions', {
-                            method: 'POST',
-                            headers: {
-                                'Content-Type': 'application/json',
-                                'Authorization': `Bearer ${apiKey}`
-                            },
-                            body: JSON.stringify({
-                                model: modelId || 'gpt-4o-mini',
-                                messages: [
-                                    { role: "system", content: "You are a translator for a premium chocolate brand. Translate product names from Traditional Chinese to English. Output strictly the English name only." },
-                                    { role: "user", content: text }
-                                ],
-                                temperature: 0.3
-                            })
-                        });
-                        
-                        if (!response.ok) {
-                            const errData = await response.json();
-                            throw new Error(errData.error?.message || `OpenAI Error ${response.status}`);
-                        }
-                        
-                        data = await response.json();
-                        resultText = data.choices?.[0]?.message?.content?.trim();
-
-                    } else {
-                        // --- Google Gemini Logic ---
-                        response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${modelId}:generateContent?key=${apiKey}`, {
-                            method: 'POST',
-                            headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({ contents: [{ parts: [{ text: systemPrompt }] }] })
-                        });
-
-                        if (response.status === 429) throw new Error('429');
-                        data = await response.json();
-                        
-                        if (data.error) {
-                            if (data.error.code !== 429 && data.error.status !== 'RESOURCE_EXHAUSTED') {
-                                throw new Error(`Gemini Error: ${data.error.message}`);
-                            }
-                            throw new Error('429');
-                        }
-                        resultText = data.candidates?.[0]?.content?.parts?.[0]?.text?.trim();
-                    }
-
-                    return resultText || null;
-
-                } catch (error) {
-                    // 錯誤處理與重試
-                    const isRateLimit = error.message === '429' || error.message.includes('Rate limit') || error.message.includes('Too Many Requests');
-                    
-                    if (isRateLimit && retryCount < 5) {
-                        const waitTime = 2000 * Math.pow(2, retryCount); 
-                        setTranslateProgress(`流量限制 (${aiProvider})，等待 ${waitTime/1000} 秒後重試...`);
-                        await new Promise(r => setTimeout(r, waitTime));
-                        return callAI(text, retryCount + 1);
-                    }
-                    console.error("API Call Failed:", error);
-                    return null; // 放棄此筆
-                }
-            };
-
-            // 逐筆翻譯流程
-            const handleBatchTranslate = async () => {
-                if (!apiKey) { setShowKeyModal(true); return; }
-                setIsBatchTranslating(true);
-                let updatedTags = [...tags];
-                
-                const queueIndices = updatedTags.map((tag, index) => {
-                    const isEmpty = !tag.engName || tag.engName.trim() === '';
-                    return (isEmpty) ? index : -1;
-                }).filter(index => index !== -1);
-
-                if (queueIndices.length === 0) {
-                    alert("沒有英文欄位空白的項目需要翻譯。");
-                    setIsBatchTranslating(false);
-                    return;
-                }
-
-                let successCount = 0;
-
-                for (let i = 0; i < queueIndices.length; i++) {
-                    const index = queueIndices[i];
-                    const tag = updatedTags[index];
-
-                    setTranslateProgress(`進度: ${i + 1} / ${queueIndices.length} (成功: ${successCount}) - 正在翻譯: ${tag.name}...`);
-
-                    const translatedText = await callAI(tag.name);
-
-                    if (translatedText) {
-                        updatedTags[index] = { ...tag, engName: translatedText };
-                        successCount++;
-                        setTags([...updatedTags]); 
-                    }
-
-                    // 速率保護 (Gemini 需要較長冷卻，OpenAI 付費版通常很快)
-                    const cooldown = aiProvider === 'openai' ? 200 : 1500;
-                    if (i < queueIndices.length - 1) {
-                        await new Promise(r => setTimeout(r, cooldown));
-                    }
-                }
-
-                setIsBatchTranslating(false);
-                setTranslateProgress('');
-                alert(`翻譯作業結束！\n共需翻譯 ${queueIndices.length} 筆，成功翻譯 ${successCount} 筆。`);
             };
 
             const addTag = () => {
@@ -465,7 +335,6 @@
                             </div>
                         </div>
                         <div className="flex gap-2">
-                            <button onClick={() => setShowKeyModal(true)} className={`p-2 rounded-lg border ${apiKey ? 'bg-[#E1C284]/20 border-[#E1C284] text-[#E1C284]' : 'bg-[#2B130F] border-[#E1C284]/30 text-[#E1C284]/50'}`} title="AI Settings"><Icon name="Bot" size={18}/></button>
                             <button onClick={() => csvInputRef.current.click()} className="bg-[#2B130F] border border-[#E1C284]/50 text-[#E1C284] p-2 rounded-lg"><Icon name="FileSpreadsheet" size={18}/></button>
                             <button onClick={() => fileInputRef.current.click()} className="bg-[#2B130F] border border-[#E1C284]/50 text-[#E1C284] p-2 rounded-lg"><Icon name="Image" size={18}/></button>
                             <button onClick={() => { setView('preview'); setTimeout(() => window.print(), 800); }} className="bg-[#E1C284] text-[#2B130F] p-2 rounded-lg font-bold flex items-center gap-1"><Icon name="Printer" size={18}/></button>
@@ -479,22 +348,9 @@
                                     <span className="text-[10px] font-bold text-[#E1C284]/60 uppercase tracking-widest">List ({tags.length})</span>
                                     <div className="flex gap-2">
                                         <button onClick={handleResetData} className="text-[#E1C284]/30 hover:text-[#E1C284] p-1"><Icon name="RotateCcw" size={14}/></button>
-                                        <button onClick={handleBatchTranslate} disabled={isBatchTranslating} className="flex items-center gap-1 bg-gradient-to-r from-purple-900 to-[#2B130F] border border-[#E1C284]/50 text-[#E1C284] px-3 py-1.5 rounded-full text-xs font-bold shadow-lg active:scale-95 transition-all">
-                                            {isBatchTranslating ? <Icon name="Loader2" size={12} className="animate-spin"/> : <Icon name="Sparkles" size={12}/>}
-                                            {isBatchTranslating ? '打包翻譯' : 'AI 翻譯'}
-                                        </button>
                                     </div>
                                 </div>
-                                {isBatchTranslating && (
-                                    <div className="bg-[#E1C284]/10 rounded-lg p-3 border border-[#E1C284]/20 flex flex-col gap-2">
-                                        <div className="flex justify-between items-center text-xs text-[#E1C284]">
-                                            <span className="flex items-center gap-1"><Icon name="Loader2" size={10} className="animate-spin"/> Processing</span>
-                                            <span>{aiProvider === 'openai' ? 'OpenAI Mode' : 'Gemini Mode'}</span>
-                                        </div>
-                                        <div className="bg-[#2B130F] rounded-full h-1.5 overflow-hidden"><div className="bg-[#E1C284] h-full animate-pulse w-full"></div></div>
-                                        <p className="text-[10px] text-[#E1C284]/80 text-center font-mono">{translateProgress}</p>
-                                    </div>
-                                )}
+                                
                                 {tags.map(tag => (
                                     <div key={tag.id} className="bg-[#3e2b27] p-4 rounded-sm border border-[#E1C284]/30 shadow-md flex items-center justify-between active:scale-[0.98]" onClick={() => setEditingId(tag.id)}>
                                         <div className="flex-1 min-w-0 pr-3">
@@ -533,38 +389,7 @@
                         <button onClick={() => setView('preview')} className={`flex flex-col items-center gap-1 p-2 rounded-lg ${view === 'preview' ? 'text-[#E1C284]' : 'text-[#E1C284]/30'}`}><Icon name="Eye" size={24} /><span className="text-[10px] font-serif tracking-widest">PREVIEW</span></button>
                     </nav>
 
-                    <button onClick={addTag} className="fixed bottom-8 left-1/2 -translate-x-1/2 w-16 h-16 bg-[#E1C284] text-[#2B130F] rounded-full shadow-[0_0_20px_rgba(225,194,132,0.4)] flex items-center justify-center active:scale-95 transition-transform z-40 border-4 border-[#2B130F] no-print" style={{display: (view === 'list' && !editingId && !deleteConfirmId && !csvImportData && !showKeyModal) ? 'flex' : 'none'}}><Icon name="Plus" size={32} /></button>
-
-                    {/* Modals & Drawers */}
-                    {showKeyModal && (
-                        <div className="fixed inset-0 bg-black/90 z-[90] flex items-center justify-center p-6 backdrop-blur-sm">
-                            <div className="bg-[#2B130F] border border-[#E1C284] rounded-sm p-6 w-full max-w-xs shadow-2xl relative">
-                                <button onClick={() => setShowKeyModal(false)} className="absolute top-2 right-2 text-[#E1C284]/50"><Icon name="X" size={16}/></button>
-                                <div className="flex flex-col items-center mb-4"><Icon name="Sparkles" className="text-[#E1C284] mb-2" size={32} /><h3 className="font-serif text-lg text-[#E1C284] text-center">AI Settings</h3></div>
-                                
-                                <p className="text-[#E1C284]/70 text-xs mb-2 text-center">選擇 AI 供應商</p>
-                                <select 
-                                    value={aiProvider} 
-                                    onChange={(e) => {
-                                        setAiProvider(e.target.value);
-                                        setModelId(e.target.value === 'openai' ? 'gpt-4o-mini' : 'gemini-1.5-flash');
-                                    }}
-                                    className="w-full px-3 py-2 bg-[#1a0e0b] text-[#E1C284] border border-[#E1C284]/30 rounded-sm mb-4 outline-none text-sm text-center"
-                                >
-                                    <option value="gemini">Google Gemini (免費額度)</option>
-                                    <option value="openai">OpenAI (需付費/自有Key)</option>
-                                </select>
-
-                                <p className="text-[#E1C284]/70 text-xs mb-2 text-center">API Key ({aiProvider === 'openai' ? 'sk-...' : 'AIza...'})</p>
-                                <input type="password" placeholder="Paste API Key here..." value={apiKey} onChange={(e) => setApiKey(e.target.value)} className="w-full px-3 py-2 bg-[#1a0e0b] text-[#E1C284] border border-[#E1C284]/30 rounded-sm mb-4 outline-none text-sm"/>
-                                
-                                <p className="text-[#E1C284]/70 text-xs mb-2 text-center">模型 Model</p>
-                                <input type="text" value={modelId} onChange={(e) => setModelId(e.target.value)} className="w-full px-3 py-2 bg-[#1a0e0b] text-[#E1C284] border border-[#E1C284]/30 rounded-sm mb-4 outline-none text-sm text-xs font-mono"/>
-                                
-                                <button onClick={() => setShowKeyModal(false)} className="w-full py-3 bg-[#E1C284] text-[#2B130F] rounded-sm font-bold text-sm">Save & Close</button>
-                            </div>
-                        </div>
-                    )}
+                    <button onClick={addTag} className="fixed bottom-8 left-1/2 -translate-x-1/2 w-16 h-16 bg-[#E1C284] text-[#2B130F] rounded-full shadow-[0_0_20px_rgba(225,194,132,0.4)] flex items-center justify-center active:scale-95 transition-transform z-40 border-4 border-[#2B130F] no-print" style={{display: (view === 'list' && !editingId && !deleteConfirmId && !csvImportData) ? 'flex' : 'none'}}><Icon name="Plus" size={32} /></button>
 
                     {csvImportData && (
                         <div className="fixed inset-0 bg-black/80 z-[70] flex items-center justify-center p-6 backdrop-blur-sm">
@@ -592,7 +417,7 @@
                                     <div className="space-y-1"><label className="text-[10px] font-serif text-[#E1C284]/60 ml-1">NAME (CHI)</label><input type="text" value={currentEditingTag.name} onChange={(e) => updateTag(editingId, 'name', e.target.value)} className="w-full px-3 py-3 bg-[#1a0e0b] text-[#E1C284] rounded-sm focus:ring-1 focus:ring-[#E1C284] outline-none font-serif text-lg border border-[#E1C284]/20"/></div>
                                     <div className="flex gap-2 items-end">
                                         <div className="flex-1 space-y-1"><label className="text-[10px] font-serif text-[#E1C284]/60 ml-1">NAME (ENG)</label><input type="text" value={currentEditingTag.engName} onChange={(e) => updateTag(editingId, 'engName', e.target.value)} className="w-full px-3 py-2 bg-[#1a0e0b] text-[#E1C284] rounded-sm focus:ring-1 focus:ring-[#E1C284] outline-none font-serif text-xs border border-[#E1C284]/20 uppercase"/></div>
-                                        <button onClick={async () => { if(!apiKey) { setShowKeyModal(true); return; } setIsSingleTranslating(true); const res = await callAI(currentEditingTag.name); if(res) updateTag(editingId, 'engName', res); setIsSingleTranslating(false); }} disabled={isSingleTranslating} className="mb-[1px] h-[34px] px-3 bg-[#E1C284] text-[#2B130F] rounded-sm font-bold text-[10px] flex items-center gap-1 shadow-md active:scale-95 transition-all whitespace-nowrap">{isSingleTranslating ? <Icon name="Loader2" size={12} className="animate-spin"/> : <Icon name="Sparkles" size={12}/>} AI</button>
+                                        <button onClick={() => window.open(`https://translate.google.com/?sl=zh-TW&tl=en&text=${encodeURIComponent(currentEditingTag.name)}&op=translate`, '_blank')} className="mb-[1px] h-[34px] px-3 bg-blue-100 text-blue-700 border border-blue-200 rounded-sm font-bold text-[10px] flex items-center gap-1 shadow-md active:scale-95 transition-all whitespace-nowrap ml-2" title="開啟 Google 翻譯網頁"><Icon name="Globe" size={12}/></button>
                                     </div>
                                     <div className="grid grid-cols-2 gap-3">
                                         <div className="space-y-1"><label className="text-[10px] font-serif text-[#E1C284]/60 ml-1">PRICE $</label><input type="number" value={currentEditingTag.price} onChange={(e) => updateTag(editingId, 'price', e.target.value)} className="w-full px-3 py-3 bg-[#1a0e0b] text-[#E1C284] rounded-sm focus:ring-1 focus:ring-[#E1C284] outline-none font-serif text-2xl border border-[#E1C284]/20"/></div>
