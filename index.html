@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>CupiCho Price Tag System</title>
+    <title>CupiCho Price Tag System v3.1</title>
     
     <!-- 1. 載入 Tailwind CSS (樣式庫) -->
     <script src="https://cdn.tailwindcss.com"></script>
@@ -46,8 +46,9 @@
     <!-- 5. React 程式碼邏輯 -->
     <script type="text/babel" data-presets="react">
         const { useState, useEffect, useRef } = React;
+        const VERSION = "v3.1 Turbo"; // 版本號
         
-        // 修正後的圖示組件 (Lucide Icons)
+        // 圖示組件
         const Icon = ({ name, size = 18, className }) => {
             const icons = {
                 Plus: <path d="M5 12h14M12 5v14" />,
@@ -105,7 +106,7 @@
 
             const [tags, setTags] = useState(defaultTags);
             const [apiKey, setApiKey] = useState('');
-            // 將預設模型改為 gemini-1.5-flash，這是目前速度最快且穩定的版本
+            // 使用 Flash 模型確保速度與穩定性
             const [modelId, setModelId] = useState('gemini-1.5-flash'); 
             const [customLogo, setCustomLogo] = useState(null);
             const [isLoaded, setIsLoaded] = useState(false);
@@ -178,7 +179,7 @@
                 reader.readAsDataURL(file);
             };
 
-            // 單筆翻譯 API (字串)
+            // 單筆翻譯 API
             const callGeminiAPI = async (text, retryCount = 0) => {
                 if (!apiKey) return null;
                 const prompt = `Translate to English for high-end chocolate brand 'CupiCho'. Style: Premium. Keep quantity info. Input: "${text}" Output:`;
@@ -192,10 +193,7 @@
 
                     if (response.status === 429) throw new Error('429');
                     const data = await response.json();
-                    if (data.error) {
-                        if (data.error.code === 429) throw new Error('429');
-                        return null;
-                    }
+                    if (data.error) throw new Error('API Error');
                     return data.candidates?.[0]?.content?.parts?.[0]?.text?.trim() || null;
                 } catch (error) {
                     if (error.message === '429' && retryCount < 3) {
@@ -207,14 +205,15 @@
                 }
             };
 
-            // 批次翻譯 API (JSON Array)
+            // 批次翻譯 API (JSON Array) - 修正解析邏輯
             const callGeminiBatchAPI = async (texts, retryCount = 0) => {
                 if (!apiKey) return null;
-                const prompt = `You are a professional translator for 'CupiCho' chocolate brand.
-                Task: Translate the following list of product names from Traditional Chinese to English.
-                Style: Concise, Premium, preserve numbers/weights.
-                Format: Return ONLY a raw JSON array of strings. No markdown, no code blocks.
-                Input Array: ${JSON.stringify(texts)}`;
+                
+                const prompt = `You are a professional translator.
+                Task: Translate these Traditional Chinese product names to English.
+                Style: Premium chocolate brand style. Keep numbers/weights.
+                Format: Return strictly a valid JSON array of strings. Example: ["Item 1", "Item 2"].
+                Input: ${JSON.stringify(texts)}`;
 
                 try {
                     const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${modelId}:generateContent?key=${apiKey}`, {
@@ -225,17 +224,21 @@
 
                     if (response.status === 429) throw new Error('429');
                     const data = await response.json();
+                    
                     if (data.error) throw new Error(data.error.message);
                     
-                    let rawText = data.candidates?.[0]?.content?.parts?.[0]?.text?.trim();
-                    if (!rawText) return null;
-
-                    // 清理可能的回傳格式 (如 ```json ... ```)
-                    rawText = rawText.replace(/```json/g, '').replace(/```/g, '').trim();
+                    let rawText = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
                     
-                    return JSON.parse(rawText);
+                    // 暴力解析：尋找最外層的 [ ]
+                    const jsonMatch = rawText.match(/\[[\s\S]*\]/);
+                    if (!jsonMatch) {
+                        console.error("無法解析 JSON:", rawText);
+                        return null;
+                    }
+                    
+                    return JSON.parse(jsonMatch[0]);
                 } catch (error) {
-                    if ((error.message === '429' || error.message.includes('429')) && retryCount < 3) {
+                    if ((error.message.includes('429')) && retryCount < 3) {
                         const waitTime = 2000 * Math.pow(2, retryCount);
                         setTranslateProgress(`流量限制，等待 ${waitTime/1000} 秒後重試...`);
                         await new Promise(r => setTimeout(r, waitTime));
@@ -251,21 +254,20 @@
                 setIsBatchTranslating(true);
                 let updatedTags = [...tags];
                 
-                // 找出需要翻譯的 Index
+                // 找出需要翻譯的 Index (英文為空)
                 const queueIndices = updatedTags.map((tag, index) => {
-                    const hasChinese = /[\u4e00-\u9fa5]/.test(tag.engName);
                     const isEmpty = !tag.engName || tag.engName.trim() === '';
-                    return (hasChinese || isEmpty) ? index : -1;
+                    return (isEmpty) ? index : -1;
                 }).filter(index => index !== -1);
 
                 if (queueIndices.length === 0) {
-                    alert("目前沒有需要翻譯的項目");
+                    alert("沒有英文欄位空白的項目需要翻譯。");
                     setIsBatchTranslating(false);
                     return;
                 }
 
                 let successCount = 0;
-                const BATCH_SIZE = 50; // 加大批次量到 50，大幅減少請求次數
+                const BATCH_SIZE = 50; // 超級批次量：50
 
                 for (let i = 0; i < queueIndices.length; i += BATCH_SIZE) {
                     const currentBatchIndices = queueIndices.slice(i, i + BATCH_SIZE);
@@ -275,19 +277,21 @@
 
                     const translatedNames = await callGeminiBatchAPI(currentBatchNames);
 
-                    if (translatedNames && Array.isArray(translatedNames) && translatedNames.length === currentBatchIndices.length) {
+                    if (translatedNames && Array.isArray(translatedNames)) {
+                        // 確保回傳數量對應，如果少回傳了，只更新前面的
                         currentBatchIndices.forEach((tagIndex, batchIdx) => {
-                            updatedTags[tagIndex] = { ...updatedTags[tagIndex], engName: translatedNames[batchIdx] };
-                            successCount++;
+                            if (translatedNames[batchIdx]) {
+                                updatedTags[tagIndex] = { ...updatedTags[tagIndex], engName: translatedNames[batchIdx] };
+                                successCount++;
+                            }
                         });
-                        setTags([...updatedTags]); 
+                        setTags([...updatedTags]); // 即時更新畫面
                     } else {
-                        console.warn("批次翻譯部分失敗，跳過該批次");
+                        console.warn(`第 ${i} 批次翻譯失敗或格式錯誤`);
                     }
 
-                    // 強制冷卻時間縮短為 500ms (0.5秒)，因為批次大，請求少，可以更快
+                    // 快速冷卻：0.5 秒
                     if (i + BATCH_SIZE < queueIndices.length) {
-                        setTranslateProgress(`處理中...`);
                         await new Promise(r => setTimeout(r, 500));
                     }
                 }
@@ -439,7 +443,10 @@
                         <div className="flex items-center gap-2">
                             <div className="text-[#E1C284]"><Icon name="Palette" size={20}/></div>
                             <div>
-                                <h1 className="font-bold text-[#E1C284] text-base tracking-widest">CUPICHO</h1>
+                                <div className="flex items-center gap-2">
+                                    <h1 className="font-bold text-[#E1C284] text-base tracking-widest">CUPICHO</h1>
+                                    <span className="text-[10px] bg-[#E1C284]/20 text-[#E1C284] px-1.5 py-0.5 rounded border border-[#E1C284]/30">{VERSION}</span>
+                                </div>
                                 <p className="text-[#E1C284]/60 text-[10px] flex items-center gap-1">
                                     <Icon name="Save" size={10} className="animate-pulse"/> Auto-Save
                                 </p>
@@ -470,7 +477,7 @@
                                     <div className="bg-[#E1C284]/10 rounded-lg p-3 border border-[#E1C284]/20 flex flex-col gap-2">
                                         <div className="flex justify-between items-center text-xs text-[#E1C284]">
                                             <span className="flex items-center gap-1"><Icon name="Loader2" size={10} className="animate-spin"/> Processing</span>
-                                            <span>Batch Mode</span>
+                                            <span>Super Batch (50 items)</span>
                                         </div>
                                         <div className="bg-[#2B130F] rounded-full h-1.5 overflow-hidden"><div className="bg-[#E1C284] h-full animate-pulse w-full"></div></div>
                                         <p className="text-[10px] text-[#E1C284]/80 text-center font-mono">{translateProgress}</p>
@@ -525,7 +532,7 @@
                                 <p className="text-[#E1C284]/70 text-xs mb-2 text-center">輸入 Gemini API Key 以啟用翻譯。<br/>(Key 僅儲存在您的瀏覽器中)</p>
                                 <input type="password" placeholder="Paste API Key here..." value={apiKey} onChange={(e) => setApiKey(e.target.value)} className="w-full px-3 py-2 bg-[#1a0e0b] text-[#E1C284] border border-[#E1C284]/30 rounded-sm mb-4 outline-none text-sm"/>
                                 
-                                <p className="text-[#E1C284]/70 text-xs mb-2 text-center">模型 Model (選填)</p>
+                                <p className="text-[#E1C284]/70 text-xs mb-2 text-center">模型 Model (預設 Flash)</p>
                                 <input type="text" placeholder="gemini-1.5-flash" value={modelId} onChange={(e) => setModelId(e.target.value)} className="w-full px-3 py-2 bg-[#1a0e0b] text-[#E1C284] border border-[#E1C284]/30 rounded-sm mb-4 outline-none text-sm text-xs font-mono"/>
                                 
                                 <button onClick={() => setShowKeyModal(false)} className="w-full py-3 bg-[#E1C284] text-[#2B130F] rounded-sm font-bold text-sm">Save & Close</button>
