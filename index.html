@@ -105,7 +105,8 @@
 
             const [tags, setTags] = useState(defaultTags);
             const [apiKey, setApiKey] = useState('');
-            const [modelId, setModelId] = useState('gemini-2.5-flash-preview-09-2025'); // 預設模型，可更改
+            // 將預設模型改為 gemini-1.5-flash，這是目前速度最快且穩定的版本
+            const [modelId, setModelId] = useState('gemini-1.5-flash'); 
             const [customLogo, setCustomLogo] = useState(null);
             const [isLoaded, setIsLoaded] = useState(false);
             const [view, setView] = useState('list'); 
@@ -198,7 +199,7 @@
                     return data.candidates?.[0]?.content?.parts?.[0]?.text?.trim() || null;
                 } catch (error) {
                     if (error.message === '429' && retryCount < 3) {
-                        const waitTime = 2000 * Math.pow(2, retryCount); // 2s, 4s, 8s
+                        const waitTime = 2000 * Math.pow(2, retryCount); 
                         await new Promise(r => setTimeout(r, waitTime));
                         return callGeminiAPI(text, retryCount + 1);
                     }
@@ -209,7 +210,6 @@
             // 批次翻譯 API (JSON Array)
             const callGeminiBatchAPI = async (texts, retryCount = 0) => {
                 if (!apiKey) return null;
-                // 強制要求 JSON 陣列格式
                 const prompt = `You are a professional translator for 'CupiCho' chocolate brand.
                 Task: Translate the following list of product names from Traditional Chinese to English.
                 Style: Concise, Premium, preserve numbers/weights.
@@ -236,7 +236,6 @@
                     return JSON.parse(rawText);
                 } catch (error) {
                     if ((error.message === '429' || error.message.includes('429')) && retryCount < 3) {
-                        // 縮短重試等待時間: 2s, 4s, 8s
                         const waitTime = 2000 * Math.pow(2, retryCount);
                         setTranslateProgress(`流量限制，等待 ${waitTime/1000} 秒後重試...`);
                         await new Promise(r => setTimeout(r, waitTime));
@@ -266,33 +265,30 @@
                 }
 
                 let successCount = 0;
-                const BATCH_SIZE = 30; // 加大批次量到 30
+                const BATCH_SIZE = 50; // 加大批次量到 50，大幅減少請求次數
 
                 for (let i = 0; i < queueIndices.length; i += BATCH_SIZE) {
-                    // 取得目前批次的 indices
                     const currentBatchIndices = queueIndices.slice(i, i + BATCH_SIZE);
                     const currentBatchNames = currentBatchIndices.map(idx => updatedTags[idx].name);
 
                     setTranslateProgress(`正在翻譯第 ${i + 1} ~ ${Math.min(i + BATCH_SIZE, queueIndices.length)} 筆 (共 ${queueIndices.length} 筆)...`);
 
-                    // 呼叫打包 API
                     const translatedNames = await callGeminiBatchAPI(currentBatchNames);
 
                     if (translatedNames && Array.isArray(translatedNames) && translatedNames.length === currentBatchIndices.length) {
-                        // 更新資料
                         currentBatchIndices.forEach((tagIndex, batchIdx) => {
                             updatedTags[tagIndex] = { ...updatedTags[tagIndex], engName: translatedNames[batchIdx] };
                             successCount++;
                         });
-                        setTags([...updatedTags]); // 即時更新畫面
+                        setTags([...updatedTags]); 
                     } else {
                         console.warn("批次翻譯部分失敗，跳過該批次");
                     }
 
-                    // 強制冷卻 (Rate Limit Protection) - 維持 2 秒確保安全
+                    // 強制冷卻時間縮短為 500ms (0.5秒)，因為批次大，請求少，可以更快
                     if (i + BATCH_SIZE < queueIndices.length) {
-                        setTranslateProgress(`冷卻中 (避免 API 錯誤)...`);
-                        await new Promise(r => setTimeout(r, 2000));
+                        setTranslateProgress(`處理中...`);
+                        await new Promise(r => setTimeout(r, 500));
                     }
                 }
 
@@ -530,7 +526,7 @@
                                 <input type="password" placeholder="Paste API Key here..." value={apiKey} onChange={(e) => setApiKey(e.target.value)} className="w-full px-3 py-2 bg-[#1a0e0b] text-[#E1C284] border border-[#E1C284]/30 rounded-sm mb-4 outline-none text-sm"/>
                                 
                                 <p className="text-[#E1C284]/70 text-xs mb-2 text-center">模型 Model (選填)</p>
-                                <input type="text" placeholder="gemini-2.5-flash-preview-09-2025" value={modelId} onChange={(e) => setModelId(e.target.value)} className="w-full px-3 py-2 bg-[#1a0e0b] text-[#E1C284] border border-[#E1C284]/30 rounded-sm mb-4 outline-none text-sm text-xs font-mono"/>
+                                <input type="text" placeholder="gemini-1.5-flash" value={modelId} onChange={(e) => setModelId(e.target.value)} className="w-full px-3 py-2 bg-[#1a0e0b] text-[#E1C284] border border-[#E1C284]/30 rounded-sm mb-4 outline-none text-sm text-xs font-mono"/>
                                 
                                 <button onClick={() => setShowKeyModal(false)} className="w-full py-3 bg-[#E1C284] text-[#2B130F] rounded-sm font-bold text-sm">Save & Close</button>
                             </div>
