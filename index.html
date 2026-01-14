@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>CupiCho Price Tag System v3.1</title>
+    <title>CupiCho Price Tag System v3.2</title>
     
     <!-- 1. 載入 Tailwind CSS (樣式庫) -->
     <script src="https://cdn.tailwindcss.com"></script>
@@ -46,7 +46,7 @@
     <!-- 5. React 程式碼邏輯 -->
     <script type="text/babel" data-presets="react">
         const { useState, useEffect, useRef } = React;
-        const VERSION = "v3.1 Turbo"; // 版本號
+        const VERSION = "v3.2 Stable"; // 版本號更新
         
         // 圖示組件
         const Icon = ({ name, size = 18, className }) => {
@@ -106,7 +106,6 @@
 
             const [tags, setTags] = useState(defaultTags);
             const [apiKey, setApiKey] = useState('');
-            // 使用 Flash 模型確保速度與穩定性
             const [modelId, setModelId] = useState('gemini-1.5-flash'); 
             const [customLogo, setCustomLogo] = useState(null);
             const [isLoaded, setIsLoaded] = useState(false);
@@ -193,9 +192,20 @@
 
                     if (response.status === 429) throw new Error('429');
                     const data = await response.json();
-                    if (data.error) throw new Error('API Error');
+                    
+                    if (data.error) {
+                        // 遇到不可恢復的錯誤 (如 API Key 無效)，直接報錯
+                        if (data.error.code !== 429 && data.error.status !== 'RESOURCE_EXHAUSTED') {
+                            throw new Error(`Critical: ${data.error.message}`);
+                        }
+                        throw new Error('API Error');
+                    }
                     return data.candidates?.[0]?.content?.parts?.[0]?.text?.trim() || null;
                 } catch (error) {
+                    if (error.message.includes('Critical')) {
+                        alert(`API 錯誤: ${error.message}`); // 顯示具體錯誤
+                        return null;
+                    }
                     if (error.message === '429' && retryCount < 3) {
                         const waitTime = 2000 * Math.pow(2, retryCount); 
                         await new Promise(r => setTimeout(r, waitTime));
@@ -205,7 +215,7 @@
                 }
             };
 
-            // 批次翻譯 API (JSON Array) - 修正解析邏輯
+            // 批次翻譯 API (JSON Array)
             const callGeminiBatchAPI = async (texts, retryCount = 0) => {
                 if (!apiKey) return null;
                 
@@ -275,10 +285,25 @@
 
                     setTranslateProgress(`正在翻譯第 ${i + 1} ~ ${Math.min(i + BATCH_SIZE, queueIndices.length)} 筆 (共 ${queueIndices.length} 筆)...`);
 
-                    const translatedNames = await callGeminiBatchAPI(currentBatchNames);
+                    // 1. 嘗試批次翻譯
+                    let translatedNames = await callGeminiBatchAPI(currentBatchNames);
 
+                    // 2. 如果批次失敗 (Fallback 機制)，改用單筆重試
+                    if (!translatedNames || !Array.isArray(translatedNames)) {
+                        console.warn("批次翻譯失敗，啟動救援模式 (單筆重試)...");
+                        setTranslateProgress(`批次失敗，啟動救援模式 (單筆翻譯中)...`);
+                        translatedNames = [];
+                        
+                        for (const name of currentBatchNames) {
+                            const singleRes = await callGeminiAPI(name);
+                            translatedNames.push(singleRes || ""); // 失敗則填空
+                            // 單筆稍微冷卻一下
+                            await new Promise(r => setTimeout(r, 200));
+                        }
+                    }
+
+                    // 3. 更新資料
                     if (translatedNames && Array.isArray(translatedNames)) {
-                        // 確保回傳數量對應，如果少回傳了，只更新前面的
                         currentBatchIndices.forEach((tagIndex, batchIdx) => {
                             if (translatedNames[batchIdx]) {
                                 updatedTags[tagIndex] = { ...updatedTags[tagIndex], engName: translatedNames[batchIdx] };
@@ -286,8 +311,6 @@
                             }
                         });
                         setTags([...updatedTags]); // 即時更新畫面
-                    } else {
-                        console.warn(`第 ${i} 批次翻譯失敗或格式錯誤`);
                     }
 
                     // 快速冷卻：0.5 秒
