@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>CupiCho Price Tag System v3.6</title>
+    <title>CupiCho Price Tag System v3.7</title>
     
     <!-- 1. 載入 Tailwind CSS (樣式庫) -->
     <script src="https://cdn.tailwindcss.com"></script>
@@ -23,7 +23,7 @@
         @media print {
             @page { 
                 size: A4; 
-                margin: 10mm; /* 設定頁面邊距 */
+                margin: 0; /* 【修正】將瀏覽器預設頁面邊距歸零，避免位移 */
             }
             
             body { 
@@ -42,6 +42,12 @@
                 gap: 5mm !important; /* 標籤間距 */
                 width: 100% !important; 
                 background-color: white !important; /* 確保背景全白 */
+                
+                /* 【修正】手動控制內距，左側改為 5mm (原本是10mm)，讓整體往左移 */
+                padding: 10mm 5mm !important; 
+                
+                /* 確保內容在紙張中間 */
+                justify-content: center !important;
             }
 
             /* 標籤本體設定 */
@@ -63,7 +69,7 @@
     <!-- 5. React 程式碼邏輯 -->
     <script type="text/babel" data-presets="react">
         const { useState, useEffect, useRef } = React;
-        const VERSION = "v3.6 Pure Print"; // 版本號更新
+        const VERSION = "v3.7 Left Align"; // 版本號更新
         
         // 圖示組件
         const Icon = ({ name, size = 18, className }) => {
