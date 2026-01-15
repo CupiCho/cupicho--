@@ -480,6 +480,11 @@
                                                 <div className="flex-1 min-w-0 pr-2 cursor-pointer" onClick={() => { setEditingId(item.id); setEditSource('inventory'); }}>
                                                     <div className="text-[10px] text-[#E1C284]/60 font-mono">#{item.itemNo}</div>
                                                     <div className="font-bold truncate">{item.name}</div>
+                                                    {!item.engName ? (
+                                                        <div className="text-[10px] text-red-400/80 italic flex items-center gap-1"><Icon name="AlertCircle" size={10}/> 缺少英文</div>
+                                                    ) : (
+                                                        <div className="text-[10px] text-[#E1C284]/50 truncate uppercase">{item.engName}</div>
+                                                    )}
                                                     <div className="text-xs opacity-70">${item.price}</div>
                                                 </div>
                                                 <div className="flex items-center gap-2">
@@ -514,6 +519,11 @@
                                             <div className="flex-1 min-w-0 pr-3">
                                                 <div className="text-[10px] font-mono text-[#E1C284]/70">#{tag.itemNo}</div>
                                                 <p className="font-bold text-[#E1C284] truncate">{tag.name}</p>
+                                                {!tag.engName ? (
+                                                    <p className="text-[10px] text-red-400/80 italic flex items-center gap-1"><Icon name="AlertCircle" size={10}/> 缺少英文</p>
+                                                ) : (
+                                                    <p className="text-[10px] text-[#E1C284]/60 truncate uppercase">{tag.engName}</p>
+                                                )}
                                             </div>
                                             <div className="flex flex-col items-end gap-1">
                                                 <span className="text-xl font-serif text-[#E1C284]">${tag.price}</span>
