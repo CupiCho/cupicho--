@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>CupiCho Price Tag System v5.0</title>
+    <title>CupiCho Price Tag System v5.0 (Fix)</title>
     
     <!-- 1. 載入 Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
@@ -15,7 +15,7 @@
     <!-- 3. 載入 Babel -->
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
 
-    <!-- 4. 載入 Firebase (Compat版，適合直接在 HTML 使用) -->
+    <!-- 4. 載入 Firebase -->
     <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
 
@@ -23,23 +23,55 @@
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Libre+Barcode+39&family=Noto+Serif+TC:wght@400;700&family=Shippori+Mincho&display=swap');
         
+        /* 螢幕上隱藏列印專用區，確保不干擾操作介面 */
+        .print-container {
+            display: none;
+        }
+
         @media print {
-            @page { size: A4; margin: 10mm 5mm; }
-            body { background-color: white !important; margin: 0 !important; padding: 0 !important; }
-            #root { background-color: white !important; }
+            @page { 
+                size: A4; 
+                margin: 10mm 5mm; 
+            }
+            
+            body { 
+                background-color: white !important; 
+                margin: 0 !important;
+                padding: 0 !important;
+                min-height: auto !important;
+            }
+
+            #root {
+                background-color: white !important;
+            }
+
             .no-print { display: none !important; }
-            * { box-shadow: none !important; text-shadow: none !important; }
+
+            * { 
+                box-shadow: none !important; 
+                text-shadow: none !important; 
+            }
+
+            /* 【關鍵修復】列印時強制顯示並設定為網格排版 */
             .print-container { 
-                display: grid !important; grid-template-columns: 1fr 1fr !important; 
-                gap: 5mm !important; width: 100% !important; 
-                background-color: transparent !important; padding: 0 !important; 
+                display: grid !important; 
+                grid-template-columns: 1fr 1fr !important; 
+                gap: 5mm !important; 
+                width: 100% !important; 
+                background-color: transparent !important; 
+                padding: 0 !important; 
                 justify-content: center !important;
             }
+
             .cupicho-tag { 
-                border: 1px dashed #ccc !important; break-inside: avoid !important; 
-                page-break-inside: avoid !important; margin: 0 auto !important; 
-                background-color: #2B130F !important; color: #E1C284 !important; 
-                -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; 
+                border: 1px dashed #ccc !important; 
+                break-inside: avoid !important; 
+                page-break-inside: avoid !important;
+                margin: 0 auto !important; 
+                background-color: #2B130F !important; 
+                color: #E1C284 !important; 
+                -webkit-print-color-adjust: exact !important; 
+                print-color-adjust: exact !important; 
             }
         }
     </style>
@@ -540,14 +572,34 @@
                             <div className="flex flex-col items-center space-y-6">
                                 <div className="w-full flex justify-between items-center px-4 bg-[#E1C284]/10 p-2 rounded-lg border border-[#E1C284]/20">
                                     <span className="text-sm font-bold text-[#E1C284] flex items-center gap-1"><Icon name="Eye" size={16}/> 預覽 ({tags.length})</span>
-                                    <button onClick={() => window.print()} className="bg-[#E1C284] text-[#2B130F] px-4 py-1.5 rounded-sm font-bold text-sm flex items-center gap-1"><Icon name="Printer" size={16}/> 列印</button>
+                                    <button onClick={() => {
+                                        if(tags.length === 0) {
+                                            alert("待印清單是空的！請先從「庫存」頁面加入商品。");
+                                            return;
+                                        }
+                                        window.print();
+                                    }} className="bg-[#E1C284] text-[#2B130F] px-4 py-1.5 rounded-sm font-bold text-sm flex items-center gap-1"><Icon name="Printer" size={16}/> 列印</button>
                                 </div>
                                 <div className="w-full flex flex-col items-center gap-6 pb-20">
-                                    {tags.map(tag => <div key={tag.id} className="shadow-2xl shadow-black/50"><PriceTag tag={tag} /></div>)}
+                                    {tags.length === 0 ? (
+                                        <div className="text-center py-10 opacity-50 flex flex-col items-center gap-3">
+                                            <Icon name="AlertCircle" size={48} />
+                                            <p>沒有標籤可列印</p>
+                                            <p className="text-sm">請先前往「庫存」頁面，點擊「+ 加入」將商品放入待印清單。</p>
+                                            <button onClick={() => setView('inventory')} className="bg-[#E1C284] text-[#2B130F] px-4 py-2 rounded-sm font-bold text-sm">前往庫存選擇商品</button>
+                                        </div>
+                                    ) : (
+                                        tags.map(tag => <div key={tag.id} className="shadow-2xl shadow-black/50 origin-top"><PriceTag tag={tag} /></div>)
+                                    )}
                                 </div>
                             </div>
                         )}
                     </main>
+
+                    {/* 列印專用區塊 (只在列印時顯示) - 移除 hidden class，由 CSS 控制 */}
+                    <div className="print-container">
+                        {tags.map(tag => <div key={tag.id}><PriceTag tag={tag} /></div>)}
+                    </div>
 
                     <nav className="bg-[#2B130F] border-t border-[#E1C284]/20 px-6 py-2 flex justify-around items-center fixed bottom-0 left-0 right-0 max-w-md mx-auto z-30 shadow-2xl pb-safe no-print">
                         <button onClick={() => setView('inventory')} className={`flex flex-col items-center gap-1 p-2 rounded-lg ${view === 'inventory' ? 'text-[#E1C284]' : 'text-[#E1C284]/30'}`}><Icon name="Database" size={24} /><span className="text-[10px]">庫存</span></button>
