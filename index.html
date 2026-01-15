@@ -348,32 +348,78 @@
                             const text = evt.target.result;
                             const rows = text.split(/\r\n|\n/);
                             if(rows.length < 2) { setErrorMsg('CSV 內容太少，請確認檔案格式。'); return; }
+                            
+                            const headerRow = rows[0].toUpperCase();
+                            const headers = headerRow.split(',').map(h => h.trim());
+                            
+                            const fieldKeywords = {
+                                itemNo: ['ITEM NO', 'NO.', '品號', '編號', 'ID', 'ITEM_NO', 'SKU'], 
+                                brand: ['BRAND', '品牌', '廠商'],
+                                name: ['NAME (CHI)', '品名', '中文', '商品名稱', '品項', 'NAME', 'PRODUCT'], 
+                                engName: ['NAME (ENG)', '英文', 'ENGLISH', 'ENG_NAME', 'ENG'],
+                                price: ['PRICE', '價格', '售價', '$', '金額', 'RETAIL PRICE'], 
+                                weight: ['WEIGHT', '重量', '規格', 'SPEC'], 
+                                country: ['COUNTRY', '國家', '產地', 'ORIGIN']
+                            };
+                            
+                            const getIndex = (key) => headers.findIndex(h => fieldKeywords[key].some(k => h.includes(k)));
+                            const indices = {
+                                itemNo: getIndex('itemNo'), brand: getIndex('brand'), name: getIndex('name'),
+                                engName: getIndex('engName'), price: getIndex('price'), weight: getIndex('weight'), country: getIndex('country')
+                            };
+                            
+                            const isSmartMode = indices.name !== -1 || indices.price !== -1;
                             const newItems = [];
-                            for(let i=1; i<rows.length; i++) {
+                            
+                            for (let i = 1; i < rows.length; i++) {
                                 const row = rows[i].trim();
                                 if(!row) continue;
                                 const cols = row.split(',');
+                                
+                                const getData = (key, fallbackIndex) => {
+                                    if (isSmartMode) {
+                                        const idx = indices[key];
+                                        return (idx !== -1 && cols[idx]) ? cols[idx].trim() : '';
+                                    }
+                                    // Fallback Logic: 自動適應無英文欄位的情況
+                                    // 假設標準 (7欄): 0:No, 1:Brand, 2:Name, 3:Eng, 4:Price, 5:Weight, 6:Country
+                                    // 縮減版 (6欄, 無英文): 0:No, 1:Brand, 2:Name, 3:Price, 4:Weight, 5:Country
+                                    if (cols.length === 6 && fallbackIndex >= 3) {
+                                        // 遇到英文(3)，回傳空
+                                        if (fallbackIndex === 3) return ''; 
+                                        // 之後的欄位往前移一格 (Price 4->3, Weight 5->4, Country 6->5)
+                                        return cols[fallbackIndex - 1]?.trim() || '';
+                                    }
+                                    return cols[fallbackIndex]?.trim() || '';
+                                };
+                                
+                                const rawName = getData('name', 2) || '未命名';
                                 if(cols.length > 2) {
                                     newItems.push({
                                         id: Date.now().toString() + i + Math.random(),
-                                        itemNo: cols[0] || '000',
-                                        brand: cols[1] || 'Brand',
-                                        name: cols[2] || 'Name',
-                                        engName: cols[3] || '',
-                                        price: cols[4] || '0',
-                                        weight: cols[5] || '',
-                                        country: cols[6] || ''
+                                        itemNo: getData('itemNo', 0) || '000',
+                                        brand: getData('brand', 1) || 'Brand',
+                                        name: rawName,
+                                        engName: getData('engName', 3) || '',
+                                        price: getData('price', 4) || '0',
+                                        weight: getData('weight', 5) || '',
+                                        country: getData('country', 6) || ''
                                     });
                                 }
                             }
-                            if (newItems.length > 0) setCsvImportData(newItems);
-                            else setErrorMsg('解析失敗，未找到有效商品資料。');
+
+                            if (newItems.length > 0) {
+                                setCsvImportData(newItems);
+                            } else {
+                                setErrorMsg('解析失敗，未找到有效商品資料。');
+                            }
                         } catch (e) { 
                             console.error(e); setErrorMsg('讀取檔案時發生錯誤。'); 
                         } finally { setIsImporting(false); }
                     };
                     reader.readAsText(file);
                 }, 100);
+                
                 e.target.value = '';
             };
 
