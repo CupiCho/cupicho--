@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>CupiCho Price Tag System v5.1</title>
+    <title>CupiCho Price Tag System v5.2</title>
     
     <!-- 1. 載入 Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
@@ -23,23 +23,38 @@
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Libre+Barcode+39&family=Noto+Serif+TC:wght@400;700&family=Shippori+Mincho&display=swap');
         
+        /* 螢幕上強制隱藏列印專用區 */
+        .print-container {
+            display: none !important;
+        }
+
         @media print {
             @page { size: A4; margin: 10mm 5mm; }
             body { background-color: white !important; margin: 0 !important; padding: 0 !important; }
             #root { background-color: white !important; }
             .no-print { display: none !important; }
             * { box-shadow: none !important; text-shadow: none !important; }
+            
+            /* 列印時顯示並設定為網格排版 */
             .print-container { 
-                display: grid !important; grid-template-columns: 1fr 1fr !important; 
-                gap: 5mm !important; width: 100% !important; 
-                background-color: transparent !important; padding: 0 !important; 
+                display: grid !important; 
+                grid-template-columns: 1fr 1fr !important; 
+                gap: 5mm !important; 
+                width: 100% !important; 
+                background-color: transparent !important; 
+                padding: 0 !important; 
                 justify-content: center !important;
             }
+
             .cupicho-tag { 
-                border: 1px dashed #ccc !important; break-inside: avoid !important; 
-                page-break-inside: avoid !important; margin: 0 auto !important; 
-                background-color: #2B130F !important; color: #E1C284 !important; 
-                -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; 
+                border: 1px dashed #ccc !important; 
+                break-inside: avoid !important; 
+                page-break-inside: avoid !important;
+                margin: 0 auto !important; 
+                background-color: #2B130F !important; 
+                color: #E1C284 !important; 
+                -webkit-print-color-adjust: exact !important; 
+                print-color-adjust: exact !important; 
             }
         }
     </style>
@@ -49,7 +64,7 @@
 
     <script type="text/babel" data-presets="react">
         const { useState, useEffect, useRef, useMemo } = React;
-        const VERSION = "v5.1 UX Fix"; 
+        const VERSION = "v5.2 Ultimate Fix"; 
         
         // Lucide Icons
         const Icon = ({ name, size = 18, className }) => {
@@ -100,10 +115,9 @@
             const [editSource, setEditSource] = useState('inventory');
             const [deleteConfirmId, setDeleteConfirmId] = useState(null);
             const [clearConfirm, setClearConfirm] = useState(false);
+            const [clearInventoryConfirm, setClearInventoryConfirm] = useState(false); // 清空庫存確認
             const [csvImportData, setCsvImportData] = useState(null);
             const [errorMsg, setErrorMsg] = useState(null);
-            
-            // 新增：匯入讀取中狀態
             const [isImporting, setIsImporting] = useState(false);
 
             // Cloud Sync State
@@ -172,6 +186,8 @@
                     const unsubTags = firestore.collection('print_list').onSnapshot(snapshot => {
                         const items = snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id }));
                         setTags(items);
+                    }, err => {
+                        console.error("Firestore Tags Error:", err);
                     });
 
                     return () => { unsubInv(); unsubTags(); };
@@ -240,6 +256,25 @@
                 if (editingId === id) setEditingId(null);
             };
 
+            const handleClearInventory = async () => {
+                if (isCloudMode && db) {
+                    // 分批刪除 Firestore 資料 (每次最多 500 筆)
+                    const snapshot = await db.collection('inventory').get();
+                    const batchSize = 400; 
+                    for (let i = 0; i < snapshot.docs.length; i += batchSize) {
+                        const batch = db.batch();
+                        snapshot.docs.slice(i, i + batchSize).forEach(doc => {
+                            batch.delete(doc.ref);
+                        });
+                        await batch.commit();
+                    }
+                } else {
+                    setInventory([]);
+                }
+                setClearInventoryConfirm(false);
+                alert("庫存已清空！");
+            };
+
             const handleAddPrintTag = (item) => {
                 const newItem = { ...item, id: Date.now().toString() + Math.random() };
                 if (isCloudMode && db) db.collection('print_list').doc(newItem.id).set(newItem);
@@ -305,28 +340,19 @@
             const handleCSVUpload = (e) => {
                 const file = e.target.files[0];
                 if (!file) return;
-
-                // 1. 設定讀取中狀態
                 setIsImporting(true);
-
-                // 使用 setTimeout 讓 UI 有時間渲染 "Loading" 畫面，避免卡住
                 setTimeout(() => {
                     const reader = new FileReader();
                     reader.onload = (evt) => {
                         try {
                             const text = evt.target.result;
                             const rows = text.split(/\r\n|\n/);
-                            if(rows.length < 2) {
-                                setErrorMsg('CSV 內容太少，請確認檔案格式。');
-                                return;
-                            }
-                            
+                            if(rows.length < 2) { setErrorMsg('CSV 內容太少，請確認檔案格式。'); return; }
                             const newItems = [];
                             for(let i=1; i<rows.length; i++) {
                                 const row = rows[i].trim();
                                 if(!row) continue;
                                 const cols = row.split(',');
-                                // 簡單解析邏輯
                                 if(cols.length > 2) {
                                     newItems.push({
                                         id: Date.now().toString() + i + Math.random(),
@@ -340,44 +366,58 @@
                                     });
                                 }
                             }
-
-                            if (newItems.length > 0) {
-                                setCsvImportData(newItems);
-                            } else {
-                                setErrorMsg('解析失敗，未找到有效商品資料。');
-                            }
+                            if (newItems.length > 0) setCsvImportData(newItems);
+                            else setErrorMsg('解析失敗，未找到有效商品資料。');
                         } catch (e) { 
-                            console.error(e);
-                            setErrorMsg('讀取檔案時發生錯誤。'); 
-                        } finally {
-                            // 2. 讀取完成，關閉讀取中狀態
-                            setIsImporting(false);
-                        }
-                    };
-                    reader.onerror = () => {
-                        setErrorMsg('檔案讀取失敗。');
-                        setIsImporting(false);
+                            console.error(e); setErrorMsg('讀取檔案時發生錯誤。'); 
+                        } finally { setIsImporting(false); }
                     };
                     reader.readAsText(file);
                 }, 100);
-                
                 e.target.value = '';
             };
 
-            const confirmImport = (mode) => {
+            const confirmImport = async (mode) => {
                 if(!csvImportData) return;
+                
+                if(mode === 'overwrite') {
+                    // 如果是覆蓋模式，且在雲端模式下，先清空現有資料
+                    if (isCloudMode && db) {
+                        // 分批刪除舊資料
+                        const snapshot = await db.collection('inventory').get();
+                        const batchSize = 400;
+                        for (let i = 0; i < snapshot.docs.length; i += batchSize) {
+                            const deleteBatch = db.batch();
+                            snapshot.docs.slice(i, i + batchSize).forEach(doc => {
+                                deleteBatch.delete(doc.ref);
+                            });
+                            await deleteBatch.commit();
+                        }
+                    } else {
+                        // 本機模式直接清空
+                        setInventory([]);
+                    }
+                }
+
+                // 開始匯入新資料
                 if(isCloudMode && db) {
-                    const batch = db.batch();
-                    csvImportData.forEach(item => {
-                         const ref = db.collection('inventory').doc(item.id);
-                         batch.set(ref, item);
-                    });
-                    batch.commit().then(() => alert("雲端匯入完成！"));
+                    // 分批寫入 (避免超過 500 筆限制)
+                    const batchSize = 400;
+                    for (let i = 0; i < csvImportData.length; i += batchSize) {
+                        const writeBatch = db.batch();
+                        csvImportData.slice(i, i + batchSize).forEach(item => {
+                            const ref = db.collection('inventory').doc(item.id.toString());
+                            writeBatch.set(ref, item);
+                        });
+                        await writeBatch.commit();
+                    }
+                    alert(mode === 'overwrite' ? "已清空舊資料並匯入新庫存！" : "已追加匯入！");
                 } else {
                     if (mode === 'overwrite') setInventory(csvImportData);
                     else setInventory([...csvImportData, ...inventory]);
                     alert("匯入完成！");
                 }
+                
                 setCsvImportData(null);
                 setView('inventory');
             };
@@ -471,7 +511,12 @@
                                     <div className="flex gap-2 text-xs">
                                         <button onClick={() => csvInputRef.current.click()} className="flex items-center gap-1 bg-[#E1C284]/20 px-3 py-1.5 rounded-full border border-[#E1C284]/30"><Icon name="FileSpreadsheet" size={12}/> 匯入</button>
                                         <button onClick={downloadTemplate} className="flex items-center gap-1 bg-[#E1C284]/20 px-3 py-1.5 rounded-full border border-[#E1C284]/30"><Icon name="Download" size={12}/> 範本</button>
-                                        <button onClick={addNewToInventory} className="flex items-center gap-1 bg-[#E1C284] text-[#2B130F] px-3 py-1.5 rounded-full font-bold ml-auto"><Icon name="Plus" size={12}/> 新增</button>
+                                        <div className="ml-auto flex gap-2">
+                                            {inventory.length > 0 && (
+                                                <button onClick={() => setClearInventoryConfirm(true)} className="flex items-center gap-1 text-red-400 px-3 py-1.5 rounded-full border border-red-400/50 hover:bg-red-400/20"><Icon name="Trash2" size={12}/> 清空</button>
+                                            )}
+                                            <button onClick={addNewToInventory} className="flex items-center gap-1 bg-[#E1C284] text-[#2B130F] px-3 py-1.5 rounded-full font-bold"><Icon name="Plus" size={12}/> 新增</button>
+                                        </div>
                                     </div>
                                 </div>
                                 <div className="space-y-2">
@@ -666,6 +711,20 @@
                                 <div className="flex gap-3 mt-6">
                                     <button onClick={() => setClearConfirm(false)} className="flex-1 py-3 bg-[#1a0e0b] text-[#E1C284]/60 rounded-sm border border-[#E1C284]/20">取消</button>
                                     <button onClick={handleClearPrintList} className="flex-1 py-3 bg-red-600 text-white rounded-sm font-bold">確認清空</button>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
+                     {/* Clear Inventory Confirm */}
+                    {clearInventoryConfirm && (
+                        <div className="fixed inset-0 bg-black/80 z-[60] flex items-center justify-center p-6 backdrop-blur-sm">
+                            <div className="bg-[#2B130F] border border-red-500 rounded-sm p-6 w-full max-w-xs shadow-2xl">
+                                <h3 className="font-serif text-lg mb-2 text-center text-red-500 flex items-center justify-center gap-2"><Icon name="Trash2" size={20}/> 清空所有庫存？</h3>
+                                <p className="text-xs text-[#E1C284]/60 text-center mb-6">警告：此操作將永久刪除資料庫中的所有商品資料，無法復原。</p>
+                                <div className="flex gap-3 mt-6">
+                                    <button onClick={() => setClearInventoryConfirm(false)} className="flex-1 py-3 bg-[#1a0e0b] text-[#E1C284]/60 rounded-sm border border-[#E1C284]/20">取消</button>
+                                    <button onClick={handleClearInventory} className="flex-1 py-3 bg-red-600 text-white rounded-sm font-bold">確認清空</button>
                                 </div>
                             </div>
                         </div>
