@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>CupiCho Price Tag System v5.2</title>
+    <title>CupiCho Price Tag System v5.3</title>
     
     <!-- 1. 載入 Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
@@ -64,7 +64,7 @@
 
     <script type="text/babel" data-presets="react">
         const { useState, useEffect, useRef, useMemo } = React;
-        const VERSION = "v5.2 Ultimate Fix"; 
+        const VERSION = "v5.3 Encoding Fix"; 
         
         // Lucide Icons
         const Icon = ({ name, size = 18, className }) => {
@@ -115,7 +115,7 @@
             const [editSource, setEditSource] = useState('inventory');
             const [deleteConfirmId, setDeleteConfirmId] = useState(null);
             const [clearConfirm, setClearConfirm] = useState(false);
-            const [clearInventoryConfirm, setClearInventoryConfirm] = useState(false); // 清空庫存確認
+            const [clearInventoryConfirm, setClearInventoryConfirm] = useState(false);
             const [csvImportData, setCsvImportData] = useState(null);
             const [errorMsg, setErrorMsg] = useState(null);
             const [isImporting, setIsImporting] = useState(false);
@@ -258,14 +258,11 @@
 
             const handleClearInventory = async () => {
                 if (isCloudMode && db) {
-                    // 分批刪除 Firestore 資料 (每次最多 500 筆)
                     const snapshot = await db.collection('inventory').get();
                     const batchSize = 400; 
                     for (let i = 0; i < snapshot.docs.length; i += batchSize) {
                         const batch = db.batch();
-                        snapshot.docs.slice(i, i + batchSize).forEach(doc => {
-                            batch.delete(doc.ref);
-                        });
+                        snapshot.docs.slice(i, i + batchSize).forEach(doc => batch.delete(doc.ref));
                         await batch.commit();
                     }
                 } else {
@@ -337,17 +334,33 @@
                 setEditSource('inventory');
             };
 
+            // 增強版 CSV 匯入：支援編碼自動切換
             const handleCSVUpload = (e) => {
                 const file = e.target.files[0];
                 if (!file) return;
                 setIsImporting(true);
+
                 setTimeout(() => {
                     const reader = new FileReader();
                     reader.onload = (evt) => {
+                        const buffer = evt.target.result;
+                        let text = '';
+                        
+                        // 1. 嘗試 UTF-8 解碼
+                        const utf8Decoder = new TextDecoder('utf-8', { fatal: true });
                         try {
-                            const text = evt.target.result;
+                            text = utf8Decoder.decode(buffer);
+                        } catch (err) {
+                            // 2. 失敗則切換至 Big5 (Excel 繁中預設)
+                            console.log("UTF-8 decoding failed, trying Big5...");
+                            const big5Decoder = new TextDecoder('big5');
+                            text = big5Decoder.decode(buffer);
+                        }
+
+                        // 開始解析 CSV
+                        try {
                             const rows = text.split(/\r\n|\n/);
-                            if(rows.length < 2) { setErrorMsg('CSV 內容太少，請確認檔案格式。'); return; }
+                            if(rows.length < 2) { setErrorMsg('CSV 內容太少，請確認檔案格式。'); setIsImporting(false); return; }
                             
                             const headerRow = rows[0].toUpperCase();
                             const headers = headerRow.split(',').map(h => h.trim());
@@ -381,13 +394,9 @@
                                         const idx = indices[key];
                                         return (idx !== -1 && cols[idx]) ? cols[idx].trim() : '';
                                     }
-                                    // Fallback Logic: 自動適應無英文欄位的情況
-                                    // 假設標準 (7欄): 0:No, 1:Brand, 2:Name, 3:Eng, 4:Price, 5:Weight, 6:Country
-                                    // 縮減版 (6欄, 無英文): 0:No, 1:Brand, 2:Name, 3:Price, 4:Weight, 5:Country
+                                    // Fallback: 6欄模式 (無英文) -> 自動位移
                                     if (cols.length === 6 && fallbackIndex >= 3) {
-                                        // 遇到英文(3)，回傳空
                                         if (fallbackIndex === 3) return ''; 
-                                        // 之後的欄位往前移一格 (Price 4->3, Weight 5->4, Country 6->5)
                                         return cols[fallbackIndex - 1]?.trim() || '';
                                     }
                                     return cols[fallbackIndex]?.trim() || '';
@@ -414,10 +423,10 @@
                                 setErrorMsg('解析失敗，未找到有效商品資料。');
                             }
                         } catch (e) { 
-                            console.error(e); setErrorMsg('讀取檔案時發生錯誤。'); 
+                            console.error(e); setErrorMsg('解析 CSV 時發生錯誤。'); 
                         } finally { setIsImporting(false); }
                     };
-                    reader.readAsText(file);
+                    reader.readAsArrayBuffer(file); // 改用 ArrayBuffer 以支援解碼切換
                 }, 100);
                 
                 e.target.value = '';
@@ -427,27 +436,20 @@
                 if(!csvImportData) return;
                 
                 if(mode === 'overwrite') {
-                    // 如果是覆蓋模式，且在雲端模式下，先清空現有資料
                     if (isCloudMode && db) {
-                        // 分批刪除舊資料
                         const snapshot = await db.collection('inventory').get();
                         const batchSize = 400;
                         for (let i = 0; i < snapshot.docs.length; i += batchSize) {
                             const deleteBatch = db.batch();
-                            snapshot.docs.slice(i, i + batchSize).forEach(doc => {
-                                deleteBatch.delete(doc.ref);
-                            });
+                            snapshot.docs.slice(i, i + batchSize).forEach(doc => deleteBatch.delete(doc.ref));
                             await deleteBatch.commit();
                         }
                     } else {
-                        // 本機模式直接清空
                         setInventory([]);
                     }
                 }
 
-                // 開始匯入新資料
                 if(isCloudMode && db) {
-                    // 分批寫入 (避免超過 500 筆限制)
                     const batchSize = 400;
                     for (let i = 0; i < csvImportData.length; i += batchSize) {
                         const writeBatch = db.batch();
