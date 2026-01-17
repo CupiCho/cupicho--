@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>CupiCho Price Tag System v5.3</title>
+    <title>CupiCho Price Tag System v5.5</title>
     
     <!-- 1. 載入 Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
@@ -64,7 +64,7 @@
 
     <script type="text/babel" data-presets="react">
         const { useState, useEffect, useRef, useMemo } = React;
-        const VERSION = "v5.3 Encoding Fix"; 
+        const VERSION = "v5.5"; 
         
         // Lucide Icons
         const Icon = ({ name, size = 18, className }) => {
@@ -334,7 +334,6 @@
                 setEditSource('inventory');
             };
 
-            // 增強版 CSV 匯入：支援編碼自動切換
             const handleCSVUpload = (e) => {
                 const file = e.target.files[0];
                 if (!file) return;
@@ -345,19 +344,14 @@
                     reader.onload = (evt) => {
                         const buffer = evt.target.result;
                         let text = '';
-                        
-                        // 1. 嘗試 UTF-8 解碼
                         const utf8Decoder = new TextDecoder('utf-8', { fatal: true });
                         try {
                             text = utf8Decoder.decode(buffer);
                         } catch (err) {
-                            // 2. 失敗則切換至 Big5 (Excel 繁中預設)
-                            console.log("UTF-8 decoding failed, trying Big5...");
                             const big5Decoder = new TextDecoder('big5');
                             text = big5Decoder.decode(buffer);
                         }
 
-                        // 開始解析 CSV
                         try {
                             const rows = text.split(/\r\n|\n/);
                             if(rows.length < 2) { setErrorMsg('CSV 內容太少，請確認檔案格式。'); setIsImporting(false); return; }
@@ -394,7 +388,6 @@
                                         const idx = indices[key];
                                         return (idx !== -1 && cols[idx]) ? cols[idx].trim() : '';
                                     }
-                                    // Fallback: 6欄模式 (無英文) -> 自動位移
                                     if (cols.length === 6 && fallbackIndex >= 3) {
                                         if (fallbackIndex === 3) return ''; 
                                         return cols[fallbackIndex - 1]?.trim() || '';
@@ -426,7 +419,7 @@
                             console.error(e); setErrorMsg('解析 CSV 時發生錯誤。'); 
                         } finally { setIsImporting(false); }
                     };
-                    reader.readAsArrayBuffer(file); // 改用 ArrayBuffer 以支援解碼切換
+                    reader.readAsArrayBuffer(file); 
                 }, 100);
                 
                 e.target.value = '';
@@ -481,7 +474,7 @@
 
             const PriceTag = ({ tag }) => (
                 <div className="cupicho-tag relative flex overflow-hidden box-border" style={{ width: '80mm', height: '50mm', backgroundColor: '#2B130F', color: '#E1C284', fontFamily: '"WenYue GuDianMingChaoTi", serif' }}>
-                    <div className="w-[35%] h-full flex flex-col pl-3 py-3 relative z-10">
+                    <div className="w-[35%] h-full flex flex-col pl-3 pt-3 pb-2 relative z-10">
                         <div className="h-[30%] flex items-start -ml-1">
                             {customLogo ? 
                                 <img src={customLogo} className="w-[90%] h-full object-contain object-left-top"/> : 
@@ -493,13 +486,15 @@
                                 </svg>
                             }
                         </div>
-                        <div className="flex-1 flex items-start pt-2 pl-1">
+                        {/* 調整：售價下移 (pt-2 -> pt-6) */}
+                        <div className="flex-1 flex items-start pt-6 pl-1">
                             <div className="flex items-baseline" style={{ fontFamily: '"WenYue GuDianMingChaoTi", serif' }}>
                                 <span style={{ fontSize: '14pt', marginRight: '3px' }}>$</span>
                                 <span style={{ fontSize: '20pt', lineHeight: '1' }}>{tag.price}</span>
                             </div>
                         </div>
-                        <div className="mt-auto mb-1 w-full pl-1">
+                        {/* 調整：條碼下移 (mb-1 -> mb-0) */}
+                        <div className="mt-auto mb-0 w-full pl-1">
                             <div style={{ fontFamily: '"Libre Barcode 39", cursive', fontSize: '40px', color: '#E1C284', lineHeight: 0.7, whiteSpace: 'nowrap', marginLeft: '-10px', transform: 'scaleX(0.9)', transformOrigin: 'left bottom', marginBottom: '2px' }}>
                                 {tag.itemNo ? `*${tag.itemNo}*` : ''}
                             </div>
@@ -510,7 +505,8 @@
                         <div style={{ fontFamily: '"WenYue GuDianMingChaoTi", serif', fontSize: '18pt', lineHeight: '1.2', marginBottom: '4px' }}>{tag.brand}</div>
                         <div style={{ fontFamily: '"Kinuta KinutaMincho StdN R", serif', fontSize: '14pt', lineHeight: '1.3', marginBottom: '2px' }}>{tag.name}</div>
                         <div style={{ fontFamily: '"WenYue GuDianMingChaoTi", serif', fontSize: '6pt', lineHeight: '1.2', textTransform: 'uppercase', letterSpacing: '0.5px', opacity: 0.9 }}>{tag.engName}</div>
-                        <div className="flex gap-5 absolute bottom-3 right-4" style={{ fontSize: '10pt' }}>
+                        {/* 調整：重量國家上移 (bottom-4 -> bottom-7) */}
+                        <div className="flex gap-5 absolute bottom-7 right-4" style={{ fontSize: '10pt' }}>
                             <span style={{ fontFamily: '"WenYue GuDianMingChaoTi", serif' }}>{tag.weight}</span>
                             <span style={{ fontFamily: '"Kinuta KinutaMincho StdN R", serif' }}>{tag.country}</span>
                         </div>
