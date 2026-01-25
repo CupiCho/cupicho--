@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>CupiCho Price Tag System v5.5</title>
+    <title>CupiCho Price Tag System v5.7</title>
     
     <!-- 1. 載入 Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
@@ -64,7 +64,7 @@
 
     <script type="text/babel" data-presets="react">
         const { useState, useEffect, useRef, useMemo } = React;
-        const VERSION = "v5.5"; 
+        const VERSION = "v5.7"; 
         
         // Lucide Icons
         const Icon = ({ name, size = 18, className }) => {
@@ -486,16 +486,17 @@
                                 </svg>
                             }
                         </div>
-                        {/* 調整：售價下移 (pt-2 -> pt-6) */}
+                        {/* 調整：售價下移 (pt-6) */}
                         <div className="flex-1 flex items-start pt-6 pl-1">
                             <div className="flex items-baseline" style={{ fontFamily: '"WenYue GuDianMingChaoTi", serif' }}>
                                 <span style={{ fontSize: '14pt', marginRight: '3px' }}>$</span>
                                 <span style={{ fontSize: '20pt', lineHeight: '1' }}>{tag.price}</span>
                             </div>
                         </div>
-                        {/* 調整：條碼下移 (mb-1 -> mb-0) */}
+                        {/* 調整：條碼下移 (mb-0) */}
                         <div className="mt-auto mb-0 w-full pl-1">
-                            <div style={{ fontFamily: '"Libre Barcode 39", cursive', fontSize: '40px', color: '#E1C284', lineHeight: 0.7, whiteSpace: 'nowrap', marginLeft: '-10px', transform: 'scaleX(0.9)', transformOrigin: 'left bottom', marginBottom: '2px' }}>
+                            {/* 調整：條碼寬度 (scaleX 0.6), 高度 (fontSize 50px) - 模仿 Code 39 視覺 */}
+                            <div style={{ fontFamily: '"Libre Barcode 39", cursive', fontSize: '50px', color: '#E1C284', lineHeight: 0.7, whiteSpace: 'nowrap', marginLeft: '-10px', transform: 'scaleX(0.6)', transformOrigin: 'left bottom', marginBottom: '2px' }}>
                                 {tag.itemNo ? `*${tag.itemNo}*` : ''}
                             </div>
                             <div className="text-[9px] font-serif tracking-widest text-[#E1C284] leading-none">{tag.itemNo}</div>
@@ -505,7 +506,7 @@
                         <div style={{ fontFamily: '"WenYue GuDianMingChaoTi", serif', fontSize: '18pt', lineHeight: '1.2', marginBottom: '4px' }}>{tag.brand}</div>
                         <div style={{ fontFamily: '"Kinuta KinutaMincho StdN R", serif', fontSize: '14pt', lineHeight: '1.3', marginBottom: '2px' }}>{tag.name}</div>
                         <div style={{ fontFamily: '"WenYue GuDianMingChaoTi", serif', fontSize: '6pt', lineHeight: '1.2', textTransform: 'uppercase', letterSpacing: '0.5px', opacity: 0.9 }}>{tag.engName}</div>
-                        {/* 調整：重量國家上移 (bottom-4 -> bottom-7) */}
+                        {/* 調整：重量國家上移 (bottom-7) */}
                         <div className="flex gap-5 absolute bottom-7 right-4" style={{ fontSize: '10pt' }}>
                             <span style={{ fontFamily: '"WenYue GuDianMingChaoTi", serif' }}>{tag.weight}</span>
                             <span style={{ fontFamily: '"Kinuta KinutaMincho StdN R", serif' }}>{tag.country}</span>
